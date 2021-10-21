@@ -31,3 +31,54 @@ const server = app.listen(portNum, () => {
         }, 1500)
     }
 });
+
+// set io
+const io = socket(server);
+
+let currentPlayers = 0;
+let arrayOfPlayers = [];
+let collectibleItem;
+
+const updatePlayersList = (player) => {
+    arrayOfPlayers.map(p => {
+        if(p.id == player.id){
+            p.x = player.x; 
+            p.y = player.y;
+            p.score = player.score;
+        }
+    })
+}
+
+io.sockets.on('connection', socket => {
+    currentPlayers++;
+    console.log(`New connection: ${socket.id}, Current players: ${currentPlayers}`);
+
+    // handle initial
+    socket.emit('init', socket.id, arrayOfPlayers, collectibleItem);
+
+    // handle update
+    socket.on('update', (player, item) => {
+        let playerIndex = arrayOfPlayers.map(p => p.id).indexOf(player.id)
+
+        playerIndex == -1 ? arrayOfPlayers.push(player) : updatePlayersList(player);
+        !collectibleItem || collectibleItem.id !== item.id ? collectibleItem = item : null;
+
+        io.emit('update', arrayOfPlayers, collectibleItem)
+    })
+
+    // handle disconnect
+    socket.on('disconnect', () => {
+        
+        arrayOfPlayers = arrayOfPlayers.filter(p => p.id !== socket.id);
+
+        currentPlayers--;
+        if(currentPlayers < 1){
+            collectibleItem = null;
+        }
+
+        console.log(`${socket.id} disconnected. Current players: ${currentPlayers}`);
+
+        socket.broadcast.emit('remove-player', socket.id);
+    })
+
+})
